@@ -1,6 +1,6 @@
 # Smart TODO
 
-A AI-powered smart TODO app
+An AI-powered smart TODO app
 
 # Features
 

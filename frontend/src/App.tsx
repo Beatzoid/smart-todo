@@ -10,28 +10,13 @@ function App() {
 
     const [recording, setRecording] = useState(false);
 
-    const [transcription, setTranscription] = useState<string>("");
+    const addTask = (task?: string | string[]) => {
+        const taskToAdd = task ? task : newTask;
 
-    const vad = useMicVAD({
-        // Prevents it from starting to listen when the page loads
-        startOnLoad: false,
-        onSpeechEnd: (audio) => {
-            const wavBuffer = utils.encodeWAV(audio);
-
-            fetch("http://localhost:5000/api/audio", {
-                method: "POST",
-                body: wavBuffer
-            })
-                .then((res: any) => res.text())
-                .then((data: any) => {
-                    setTranscription(transcription + data);
-                });
-        }
-    });
-
-    const addTask = () => {
-        if (newTask.trim() !== "") {
-            setTasks([...tasks, newTask]);
+        if (Array.isArray(taskToAdd)) {
+            setTasks([...tasks, ...taskToAdd]);
+        } else if (taskToAdd.trim() !== "") {
+            setTasks([...tasks, taskToAdd]);
             setNewTask("");
         }
     };
@@ -41,6 +26,42 @@ function App() {
         updatedTasks.splice(index, 1);
         setTasks(updatedTasks);
     };
+
+    const handleAudio = (audio: Float32Array) => {
+        const wavBuffer = utils.encodeWAV(audio);
+
+        fetch("http://localhost:5000/api/audio", {
+            method: "POST",
+            body: wavBuffer
+        })
+            .then((res: any) => res.text())
+            .then((data: any) => {
+                const parsedData = JSON.parse(data);
+                console.log(parsedData);
+
+                addTask(
+                    parsedData
+                        .filter((item: any) => item.action === "create")
+                        .map((item: any) => item.name)
+                );
+
+                const toRemove = parsedData.filter(
+                    (item: any) => item.action === "delete"
+                );
+
+                toRemove.forEach((item: any) => {
+                    const index = tasks.indexOf(item.name);
+
+                    if (index !== -1) removeTask(index);
+                });
+            });
+    };
+
+    const vad = useMicVAD({
+        // Prevents it from starting to listen when the page loads
+        startOnLoad: false,
+        onSpeechEnd: handleAudio
+    });
 
     const handleLiveAudio = async () => {
         setRecording(!recording);
@@ -53,15 +74,15 @@ function App() {
     };
 
     return (
-        <div className="container mx-auto mt-8 max-w-md">
-            <h1 className="text-2xl font-bold mb-4">To-Do List</h1>
+        <div className="container max-w-md mx-auto mt-8">
+            <h1 className="mb-4 text-2xl font-bold">To-Do List</h1>
             <div className="flex mb-4">
                 <div className="relative flex-grow">
                     <input
                         type="text"
                         value={newTask}
                         onChange={(e) => setNewTask(e.target.value)}
-                        className="w-full border-2 rounded-l py-2 px-4"
+                        className="w-full px-4 py-2 border-2 rounded-l"
                     />
 
                     <div className="absolute inset-y-0 right-0 flex items-center px-2">
@@ -87,20 +108,18 @@ function App() {
                     </div>
                 </div>
                 <button
-                    onClick={addTask}
-                    className="bg-blue-500 text-white ms-4 py-2 px-6 rounded"
+                    onClick={() => addTask()}
+                    className="px-6 py-2 text-white bg-blue-500 rounded ms-4"
                 >
                     Add
                 </button>
             </div>
 
-            {transcription}
-
             <ul>
                 {tasks.map((task, index) => (
                     <li
                         key={index}
-                        className="flex justify-between items-center border-b py-2"
+                        className="flex items-center justify-between py-2 border-b"
                     >
                         <span>{task}</span>
                         <button
